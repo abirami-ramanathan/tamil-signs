@@ -1,0 +1,38 @@
+================================================================================
+MODULE 2: IMAGE PREPROCESSING REPORT
+================================================================================
+
+DATASET SUMMARY
+--------------------------------------------------------------------------------
+Training samples: 988
+Testing samples: 247
+Total samples: 1235
+Number of classes: 247
+Image shape: (480, 640, 3)
+Image dtype: uint8
+
+TRAINING SET STATISTICS
+--------------------------------------------------------------------------------
+Total processed: 988
+Successful: 988
+Failed: 0
+Success rate: 100.00%
+
+TESTING SET STATISTICS
+--------------------------------------------------------------------------------
+Total processed: 247
+Successful: 247
+Failed: 0
+Success rate: 100.00%
+
+PREPROCESSING CONFIGURATION
+--------------------------------------------------------------------------------
+target_size: None
+ensure_rgb: True
+normalize: False
+train_split: 0.8
+random_state: 42
+
+================================================================================
+PREPROCESSING COMPLETE
+================================================================================

@@ -1,0 +1,45 @@
+======================================================================
+HAND LANDMARK EXTRACTION REPORT
+======================================================================
+
+TRAINING DATA
+----------------------------------------------------------------------
+Number of samples: 467
+Feature dimensions: 63
+Number of classes: 235
+
+Statistics:
+  X coordinates mean: 0.3865 ± 0.2295
+  Y coordinates mean: 0.4422 ± 0.1625
+  Z coordinates mean: -0.0788 ± 0.0462
+
+======================================================================
+TEST DATA
+----------------------------------------------------------------------
+Number of samples: 119
+Feature dimensions: 63
+Number of classes: 100
+
+Statistics:
+  X coordinates mean: 0.3815 ± 0.2142
+  Y coordinates mean: 0.4294 ± 0.1504
+  Z coordinates mean: -0.0823 ± 0.0470
+
+======================================================================
+EXTRACTION STATISTICS
+----------------------------------------------------------------------
+Training:
+  Total processed: 592
+  Successful: 467
+  Failed: 125
+  Success rate: 78.89%
+
+Testing:
+  Total processed: 149
+  Successful: 119
+  Failed: 30
+  Success rate: 79.87%
+
+======================================================================
+END OF REPORT
+======================================================================

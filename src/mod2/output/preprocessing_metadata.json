@@ -1,0 +1,31 @@
+{
+  "train_samples": 592,
+  "test_samples": 149,
+  "image_shape": [
+    480,
+    640,
+    3
+  ],
+  "num_classes": 245,
+  "train_stats": {
+    "total_processed": 592,
+    "successful": 592,
+    "failed": 0,
+    "failed_files": [],
+    "processing_times": []
+  },
+  "test_stats": {
+    "total_processed": 149,
+    "successful": 149,
+    "failed": 0,
+    "failed_files": [],
+    "processing_times": []
+  },
+  "config": {
+    "target_size": null,
+    "ensure_rgb": true,
+    "normalize": false,
+    "train_split": 0.8,
+    "random_state": 42
+  }
+}
