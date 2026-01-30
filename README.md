@@ -10,6 +10,26 @@ This project implements a Tamil sign language recognition system that processes 
 - **Random Forest Classifier**: For alphabet classification
 - **TLFS23 Dataset**: 254,147 images across 247 classes from 120 individuals
 
+## Objectives
+
+### General Objectives
+
+1. **Bridge Communication Gaps**: Facilitate communication for the deaf and mute community within the 85-million-strong Tamil-speaking population worldwide
+2. **Develop Lightweight Recognition System**: Create an efficient sign language recognition system that operates without requiring expensive GPU resources or deep learning architectures
+3. **Enable Real-time Recognition**: Implement a system capable of real-time Tamil alphabet sign language recognition through webcam-based inference
+4. **Ensure Device Accessibility**: Design a deployable solution for resource-constrained devices, making it accessible to users with limited computational resources
+5. **Promote Inclusivity**: Advance accessibility and inclusivity for Tamil-speaking individuals with hearing and speech impairments
+6. **Advance Regional Sign Language Research**: Contribute to the field of regional sign language recognition, specifically for Tamil, which has been underrepresented in assistive technology research
+
+### Specific Objectives
+
+1. **Implement MediaPipe Hand Landmark Extraction**: Extract 21 anatomical hand landmarks yielding 63-dimensional feature vectors (x, y, z coordinates) from sign language images
+2. **Train Multi-class Random Forest Classifier**: Develop and train a Random Forest ensemble learning model to accurately classify all 247 Tamil alphabet classes (vowels, consonants, and compound characters)
+3. **Process TLFS23 Dataset**: Successfully load, preprocess, and utilize the complete TLFS23 dataset comprising 254,147 images across 247 classes for model training and evaluation
+4. **Achieve Robust Recognition Across Demographics**: Ensure the system performs accurately across diverse users spanning 120 individuals aged 15-80, with variations in hand size, skin tone, and gesture style
+5. **Develop Real-time Prediction Module**: Create a webcam-based inference system with visual feedback for live Tamil sign language alphabet recognition
+6. **Enable Word Formation**: Implement alphabet sequence aggregation to form complete Tamil words from recognized individual alphabet signs
+
 ## Dataset
 
 This project uses the **TLFS23 (Tamil Language Finger Spelling)** dataset, which is publicly available on [Mendeley Data](https://data.mendeley.com/datasets/). 
