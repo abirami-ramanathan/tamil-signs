@@ -11,11 +11,13 @@ Date: January 2026
 import cv2
 import numpy as np
 import pandas as pd
-import mediapipe as mp
 from pathlib import Path
 from typing import Union, List, Tuple, Optional, Dict
 from tqdm import tqdm
 import pickle
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 
 
 class HandLandmarkExtractor:
@@ -50,17 +52,16 @@ class HandLandmarkExtractor:
         self.enable_retry = enable_retry
         self.enhance_image = enhance_image
         
-        # Initialize MediaPipe Hands
-        self.mp_hands = mp.solutions.hands
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_drawing_styles = mp.solutions.drawing_styles
-        
-        self.hands = self.mp_hands.Hands(
-            static_image_mode=self.static_image_mode,
-            max_num_hands=self.max_num_hands,
-            min_detection_confidence=self.min_detection_confidence,
-            min_tracking_confidence=self.min_tracking_confidence
+        # Initialize MediaPipe Hands using new API (v0.10.30+)
+        # Note: Uses default model bundled with mediapipe
+        options = vision.HandLandmarkerOptions(
+            base_options=python.BaseOptions(model_asset_buffer=self._get_default_model()),
+            num_hands=self.max_num_hands,
+            min_hand_detection_confidence=self.min_detection_confidence,
+            min_hand_presence_confidence=self.min_tracking_confidence,
+            running_mode=vision.RunningMode.IMAGE
         )
+        self.detector = vision.HandLandmarker.create_from_options(options)
         
         # Statistics tracking
         self.stats = {
@@ -69,6 +70,29 @@ class HandLandmarkExtractor:
             'failed': 0,
             'success_rate': 0.0
         }
+    
+    def _get_default_model(self) -> bytes:
+        """Download and load the default hand landmarker model."""
+        import urllib.request
+        import tempfile
+        import os
+        
+        # Use the default hand landmarker model
+        model_url = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+        
+        # Check if model already exists in temp
+        temp_dir = Path(tempfile.gettempdir()) / "mediapipe_models"
+        temp_dir.mkdir(exist_ok=True)
+        model_path = temp_dir / "hand_landmarker.task"
+        
+        if not model_path.exists():
+            print(f"Downloading MediaPipe hand landmarker model...")
+            urllib.request.urlretrieve(model_url, model_path)
+            print(f"Model downloaded to: {model_path}")
+        
+        # Read and return model bytes
+        with open(model_path, 'rb') as f:
+            return f.read()
     
     def extract_landmarks(self, image: np.ndarray) -> Optional[np.ndarray]:
         """
@@ -90,16 +114,19 @@ class HandLandmarkExtractor:
             if self.enhance_image:
                 image = self._enhance_image(image)
             
-            # Process image with MediaPipe
-            results = self.hands.process(image)
+            # Convert numpy array to MediaPipe Image
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
+            
+            # Process image with MediaPipe new API
+            results = self.detector.detect(mp_image)
             
             # Extract landmarks if hand detected
-            if results.multi_hand_landmarks:
-                hand_landmarks = results.multi_hand_landmarks[0]  # First hand
+            if results.hand_landmarks:
+                hand_landmarks = results.hand_landmarks[0]  # First hand
                 
                 # Extract coordinates
                 landmarks = []
-                for landmark in hand_landmarks.landmark:
+                for landmark in hand_landmarks:
                     landmarks.extend([landmark.x, landmark.y, landmark.z])
                 
                 # Convert to numpy array
@@ -380,29 +407,34 @@ class HandLandmarkExtractor:
         # Create copy to avoid modifying original
         annotated_image = image.copy()
         
-        # Process image to get landmarks if not provided
-        results = self.hands.process(image)
+        # Convert numpy array to MediaPipe Image
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
         
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                self.mp_drawing.draw_landmarks(
-                    annotated_image,
-                    hand_landmarks,
-                    self.mp_hands.HAND_CONNECTIONS,
-                    self.mp_drawing_styles.get_default_hand_landmarks_style(),
-                    self.mp_drawing_styles.get_default_hand_connections_style()
-                )
+        # Process image to get landmarks
+        results = self.detector.detect(mp_image)
+        
+        if results.hand_landmarks:
+            # Draw landmarks on the image
+            for hand_landmarks in results.hand_landmarks:
+                for idx, landmark in enumerate(hand_landmarks):
+                    # Draw landmark points
+                    h, w = annotated_image.shape[:2]
+                    x, y = int(landmark.x * w), int(landmark.y * h)
+                    cv2.circle(annotated_image, (x, y), 5, (0, 255, 0), -1)
         
         return annotated_image
     
     def close(self):
         """Close MediaPipe Hands instance."""
-        if self.hands:
-            self.hands.close()
+        if hasattr(self, 'detector') and self.detector:
+            self.detector.close()
     
     def __del__(self):
         """Cleanup when object is destroyed."""
-        self.close()
+        try:
+            self.close()
+        except:
+            pass
 
 
 class DatasetLandmarkExtractor:

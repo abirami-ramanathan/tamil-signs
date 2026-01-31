@@ -1,0 +1,45 @@
+================================================================================
+OPTIMIZED RANDOM FOREST MODEL - TRAINING REPORT
+================================================================================
+
+DATASET STATISTICS
+--------------------------------------------------------------------------------
+Training samples: 467
+Testing samples: 119
+Features: 63
+Classes: 235
+
+BEST HYPERPARAMETERS
+--------------------------------------------------------------------------------
+bootstrap: True
+class_weight: None
+max_depth: 50
+max_features: log2
+min_samples_leaf: 2
+min_samples_split: 5
+n_estimators: 300
+
+Best CV Score: 0.0642
+
+MODEL PERFORMANCE
+--------------------------------------------------------------------------------
+Training Accuracy: 0.9936 (99.36%)
+Testing Accuracy: 0.0252 (2.52%)
+Overfitting Gap: 96.84%
+
+CONFIDENCE STATISTICS
+--------------------------------------------------------------------------------
+Mean Confidence: 0.1118 (11.18%)
+Median Confidence: 0.0989 (9.89%)
+Min Confidence: 0.0338 (3.38%)
+Max Confidence: 0.3268 (32.68%)
+
+CONFIDENCE DISTRIBUTION
+--------------------------------------------------------------------------------
+Very Low (0-20%): 110 samples (92.4%)
+Low (20-40%): 9 samples (7.6%)
+Medium (40-60%): 0 samples (0.0%)
+Good (60-80%): 0 samples (0.0%)
+Excellent (80-100%): 0 samples (0.0%)
+
+================================================================================

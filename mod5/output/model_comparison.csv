@@ -1,0 +1,4 @@
+Model,Training Time (s),Train Accuracy,Test Accuracy,Test Precision,Test Recall,Test F1-Score
+Random Forest,25.44,0.9993,0.7266,0.7286,0.7265,0.7254
+SVM,84.60,0.1806,0.1313,0.1243,0.1325,0.1027
+Gradient Boosting,24253.02,0.6605,0.1714,0.1717,0.1717,0.1673

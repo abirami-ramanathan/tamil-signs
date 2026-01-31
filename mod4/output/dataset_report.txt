@@ -1,0 +1,117 @@
+======================================================================
+MODULE 4: FEATURE DATASET CONSTRUCTION & SCALING REPORT
+======================================================================
+
+DATASET OVERVIEW
+----------------------------------------------------------------------
+Total Samples: 75007
+Training Samples: 59987
+Testing Samples: 15020
+Number of Features: 63
+Number of Classes: 247
+Scaler Type: standard
+Random State: 42
+
+TRAIN-TEST SPLIT
+----------------------------------------------------------------------
+Training Ratio: 79.98%
+Testing Ratio: 20.02%
+
+CLASS DISTRIBUTION
+----------------------------------------------------------------------
+Training Classes: 247
+Testing Classes: 247
+
+ORIGINAL FEATURES STATISTICS
+----------------------------------------------------------------------
+Mean: 0.272557
+Std: 0.306141
+Min: -0.659167
+Max: 1.105830
+Median: 0.281221
+
+SCALED FEATURES STATISTICS (Training Set)
+----------------------------------------------------------------------
+Mean: -0.000000
+Std: 1.000000
+Min: -11.918117
+Max: 5.485386
+Median: -0.042328
+
+SCALED FEATURES STATISTICS (Test Set)
+----------------------------------------------------------------------
+Mean: 0.005799
+Std: 0.998347
+Min: -8.536554
+Max: 5.363264
+Median: -0.032105
+
+FEATURE NAMES (63 total)
+----------------------------------------------------------------------
+ 0. wrist_x
+ 1. wrist_y
+ 2. wrist_z
+ 3. thumb_cmc_x
+ 4. thumb_cmc_y
+ 5. thumb_cmc_z
+ 6. thumb_mcp_x
+ 7. thumb_mcp_y
+ 8. thumb_mcp_z
+ 9. thumb_ip_x
+10. thumb_ip_y
+11. thumb_ip_z
+12. thumb_tip_x
+13. thumb_tip_y
+14. thumb_tip_z
+15. index_mcp_x
+16. index_mcp_y
+17. index_mcp_z
+18. index_pip_x
+19. index_pip_y
+20. index_pip_z
+21. index_dip_x
+22. index_dip_y
+23. index_dip_z
+24. index_tip_x
+25. index_tip_y
+26. index_tip_z
+27. middle_mcp_x
+28. middle_mcp_y
+29. middle_mcp_z
+30. middle_pip_x
+31. middle_pip_y
+32. middle_pip_z
+33. middle_dip_x
+34. middle_dip_y
+35. middle_dip_z
+36. middle_tip_x
+37. middle_tip_y
+38. middle_tip_z
+39. ring_mcp_x
+40. ring_mcp_y
+41. ring_mcp_z
+42. ring_pip_x
+43. ring_pip_y
+44. ring_pip_z
+45. ring_dip_x
+46. ring_dip_y
+47. ring_dip_z
+48. ring_tip_x
+49. ring_tip_y
+50. ring_tip_z
+51. pinky_mcp_x
+52. pinky_mcp_y
+53. pinky_mcp_z
+54. pinky_pip_x
+55. pinky_pip_y
+56. pinky_pip_z
+57. pinky_dip_x
+58. pinky_dip_y
+59. pinky_dip_z
+60. pinky_tip_x
+61. pinky_tip_y
+62. pinky_tip_z
+
+======================================================================
+Dataset ready for Module 5: Model Training & Selection
+======================================================================

@@ -1,0 +1,540 @@
+"""
+Module 6: Real-Time Tamil Sign Language Prediction
+
+This module implements real-time inference for Tamil sign language recognition
+using webcam, MediaPipe hand landmark detection, and trained Random Forest model.
+
+Author: Tamil Sign Language Recognition Team
+Date: January 2026
+"""
+
+import cv2
+import numpy as np
+import pickle
+import mediapipe as mp
+from pathlib import Path
+from typing import Dict, Optional, Tuple
+from collections import deque
+import time
+
+
+class RealtimePredictor:
+    """
+    Real-time Tamil sign language predictor using webcam and MediaPipe.
+    """
+    
+    def __init__(
+        self,
+        model_path: str,
+        min_detection_confidence: float = 0.7,
+        min_tracking_confidence: float = 0.5,
+        prediction_smoothing: int = 5,
+        camera_index: int = 0,
+        frame_width: int = 1280,
+        frame_height: int = 720
+    ):
+        """
+        Initialize real-time predictor.
+        
+        Args:
+            model_path: Path to trained model pickle file
+            min_detection_confidence: MediaPipe hand detection confidence
+            min_tracking_confidence: MediaPipe hand tracking confidence
+            prediction_smoothing: Number of frames to smooth predictions
+            camera_index: Camera device index (0 for default)
+            frame_width: Webcam frame width
+            frame_height: Webcam frame height
+        """
+        self.model_path = model_path
+        self.min_detection_confidence = min_detection_confidence
+        self.min_tracking_confidence = min_tracking_confidence
+        self.prediction_smoothing = prediction_smoothing
+        self.camera_index = camera_index
+        self.frame_width = frame_width
+        self.frame_height = frame_height
+        
+        # Initialize components
+        self.model = None
+        self.scaler = None
+        self.label_mapping = None
+        self.hands = None
+        self.cap = None
+        
+        # Prediction tracking
+        self.prediction_buffer = deque(maxlen=prediction_smoothing)
+        self.current_prediction = None
+        self.current_confidence = 0.0
+        
+        # Capture mode
+        self.is_paused = False
+        self.captured_prediction = None
+        self.captured_confidence = 0.0
+        self.capture_time = None
+        self.capture_hold_duration = 3.0  # seconds
+        
+        # FPS tracking
+        self.fps_buffer = deque(maxlen=30)
+        self.last_time = time.time()
+        
+        # Statistics
+        self.stats = {
+            'total_frames': 0,
+            'hands_detected': 0,
+            'predictions_made': 0
+        }
+        
+    def load_model(self):
+        """Load trained model, scaler, and label mapping from pickle file."""
+        print(f"Loading model from: {self.model_path}")
+        
+        with open(self.model_path, 'rb') as f:
+            model_data = pickle.load(f)
+        
+        self.model = model_data['model']
+        self.scaler = model_data['scaler']
+        self.label_mapping = model_data['label_mapping']
+        
+        print(f"✓ Model loaded successfully!")
+        print(f"  Model type: {type(self.model).__name__}")
+        print(f"  Number of classes: {len(self.label_mapping)}")
+        
+    def initialize_mediapipe(self):
+        """Initialize MediaPipe Hands solution."""
+        print("Initializing MediaPipe Hands...")
+        
+        mp_hands = mp.solutions.hands
+        self.hands = mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=1,
+            min_detection_confidence=self.min_detection_confidence,
+            min_tracking_confidence=self.min_tracking_confidence
+        )
+        
+        # Store drawing utilities
+        self.mp_drawing = mp.solutions.drawing_utils
+        self.mp_hands = mp_hands
+        
+        print(f"✓ MediaPipe initialized!")
+        print(f"  Detection confidence: {self.min_detection_confidence}")
+        print(f"  Tracking confidence: {self.min_tracking_confidence}")
+        
+    def initialize_camera(self):
+        """Initialize webcam capture."""
+        print(f"Initializing camera {self.camera_index}...")
+        
+        self.cap = cv2.VideoCapture(self.camera_index)
+        
+        if not self.cap.isOpened():
+            raise RuntimeError(f"Failed to open camera {self.camera_index}")
+        
+        # Set camera properties
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_height)
+        
+        # Get actual resolution
+        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        print(f"✓ Camera initialized!")
+        print(f"  Resolution: {actual_width}x{actual_height}")
+        
+    def extract_landmarks(self, hand_landmarks) -> np.ndarray:
+        """
+        Extract 63-dimensional feature vector from hand landmarks.
+        
+        Args:
+            hand_landmarks: MediaPipe hand landmarks
+        
+        Returns:
+            Feature vector (63 dimensions: 21 landmarks × 3 coordinates)
+        """
+        features = []
+        
+        for landmark in hand_landmarks.landmark:
+            features.extend([landmark.x, landmark.y, landmark.z])
+        
+        return np.array(features).reshape(1, -1)
+    
+    def predict_sign(self, features: np.ndarray) -> Tuple[str, float]:
+        """
+        Predict Tamil sign from features.
+        
+        Args:
+            features: Hand landmark features (1, 63)
+        
+        Returns:
+            Tuple of (predicted_character, confidence)
+        """
+        # Scale features
+        features_scaled = self.scaler.transform(features)
+        
+        # Predict
+        predicted_label = self.model.predict(features_scaled)[0]
+        predicted_proba = self.model.predict_proba(features_scaled)[0]
+        confidence = np.max(predicted_proba)
+        
+        # Map to Tamil character
+        predicted_char = self.label_mapping.get(predicted_label, "Unknown")
+        
+        return predicted_char, confidence
+    
+    def smooth_prediction(self, prediction: str, confidence: float) -> Tuple[str, float]:
+        """
+        Apply temporal smoothing to predictions.
+        
+        Args:
+            prediction: Current prediction
+            confidence: Current confidence
+        
+        Returns:
+            Smoothed prediction and average confidence
+        """
+        # Add to buffer
+        self.prediction_buffer.append((prediction, confidence))
+        
+        # Get most common prediction in buffer
+        predictions = [p for p, c in self.prediction_buffer]
+        confidences = [c for p, c in self.prediction_buffer]
+        
+        # Count occurrences
+        pred_counts = {}
+        for pred in predictions:
+            pred_counts[pred] = pred_counts.get(pred, 0) + 1
+        
+        # Get most common
+        smoothed_pred = max(pred_counts, key=pred_counts.get)
+        avg_confidence = np.mean([c for p, c in self.prediction_buffer if p == smoothed_pred])
+        
+        return smoothed_pred, avg_confidence
+    
+    def calculate_fps(self) -> float:
+        """Calculate current FPS."""
+        current_time = time.time()
+        fps = 1.0 / (current_time - self.last_time)
+        self.last_time = current_time
+        
+        self.fps_buffer.append(fps)
+        return np.mean(self.fps_buffer)
+    
+    def draw_info(self, frame: np.ndarray, prediction: str, confidence: float, fps: float):
+        """
+        Draw prediction info and statistics on frame.
+        
+        Args:
+            frame: Video frame
+            prediction: Predicted character
+            confidence: Prediction confidence
+            fps: Current FPS
+        """
+        height, width = frame.shape[:2]
+        
+        # Draw semi-transparent overlay for text background
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (width, 160), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
+        
+        # Draw title
+        cv2.putText(frame, "Tamil Sign Language Recognition",
+                   (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        
+        # Check if we have a captured prediction
+        display_prediction = prediction
+        display_confidence = confidence
+        text_color = (0, 255, 0)  # Green
+        
+        if self.captured_prediction and self.capture_time:
+            elapsed = time.time() - self.capture_time
+            if elapsed < self.capture_hold_duration:
+                display_prediction = self.captured_prediction
+                display_confidence = self.captured_confidence
+                text_color = (0, 255, 255)  # Yellow for captured
+                # Show capture timer
+                remaining = self.capture_hold_duration - elapsed
+                cv2.putText(frame, f"CAPTURED ({remaining:.1f}s)",
+                           (width - 300, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+            else:
+                self.captured_prediction = None
+                self.capture_time = None
+        
+        # Show pause status
+        if self.is_paused:
+            cv2.putText(frame, "[PAUSED]",
+                       (width - 200, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+            text_color = (0, 165, 255)  # Orange for paused
+        
+        # Draw prediction
+        if display_prediction:
+            pred_text = f"Prediction: {display_prediction}"
+            cv2.putText(frame, pred_text,
+                       (10, 75), cv2.FONT_HERSHEY_SIMPLEX, 1.2, text_color, 3)
+            
+            # Draw confidence with stability indicator
+            conf_text = f"Confidence: {display_confidence:.2%}"
+            cv2.putText(frame, conf_text,
+                       (10, 115), cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2)
+            
+            # Show stability indicator
+            if len(self.prediction_buffer) >= self.prediction_smoothing:
+                predictions = [p for p, c in self.prediction_buffer]
+                if predictions.count(display_prediction) >= self.prediction_smoothing - 1:
+                    cv2.putText(frame, "✓ STABLE",
+                               (10, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        else:
+            cv2.putText(frame, "No hand detected",
+                       (10, 75), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+        
+        # Draw FPS
+        fps_text = f"FPS: {fps:.1f}"
+        cv2.putText(frame, fps_text,
+                   (width - 150, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
+        # Draw instructions at bottom
+        instructions = "SPACE: pause | ENTER: capture | 's': save | 'q': quit | 'r': reset"
+        cv2.putText(frame, instructions,
+                   (10, height - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    
+    def save_frame(self, frame: np.ndarray, prediction: str, output_dir: str = "output"):
+        """Save current frame with prediction."""
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"capture_{prediction}_{timestamp}.jpg"
+        filepath = output_path / filename
+        
+        cv2.imwrite(str(filepath), frame)
+        print(f"\n✓ Frame saved: {filepath}")
+    
+    def run(self, output_dir: Optional[str] = None):
+        """
+        Run real-time prediction loop.
+        
+        Args:
+            output_dir: Optional directory to save captured frames
+        """
+        print("\n" + "=" * 70)
+        print("MODULE 6: REAL-TIME TAMIL SIGN LANGUAGE RECOGNITION")
+        print("=" * 70)
+        
+        # Initialize components
+        self.load_model()
+        self.initialize_mediapipe()
+        self.initialize_camera()
+        
+        print("\n" + "=" * 70)
+        print("STARTING REAL-TIME PREDICTION")
+        print("=" * 70)
+        print("\nControls:")
+        print("  SPACE    - Pause/unpause video")
+        print("  ENTER    - Capture current prediction (hold 3 seconds)")
+        print("  's'      - Save current frame")
+        print("  'q'      - Quit application")
+        print("  'r'      - Reset statistics")
+        
+        try:
+            # Main processing loop
+            while self.cap.isOpened():
+                ret, frame = self.cap.read()
+                if not ret:
+                    print("Failed to read frame from camera")
+                    break
+                
+                self.stats['total_frames'] += 1
+                
+                # Flip frame horizontally for mirror effect
+                frame = cv2.flip(frame, 1)
+                
+                # Convert BGR to RGB for MediaPipe
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                
+                # Initialize prediction variables
+                prediction = None
+                confidence = 0.0
+                
+                # Only process if not paused
+                if not self.is_paused:
+                    # Process with MediaPipe
+                    results = self.hands.process(frame_rgb)
+                else:
+                    # Keep showing last prediction when paused
+                    prediction = self.current_prediction
+                    confidence = self.current_confidence
+                    results = None
+                
+                # Check if hand detected (and not paused)
+                if not self.is_paused and results and results.multi_hand_landmarks:
+                    self.stats['hands_detected'] += 1
+                    
+                    # Draw hand landmarks
+                    for hand_landmarks in results.multi_hand_landmarks:
+                        self.mp_drawing.draw_landmarks(
+                            frame,
+                            hand_landmarks,
+                            self.mp_hands.HAND_CONNECTIONS,
+                            self.mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
+                            self.mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=2)
+                        )
+                    
+                    # Extract features from first detected hand
+                    features = self.extract_landmarks(results.multi_hand_landmarks[0])
+                    
+                    # Predict sign
+                    prediction, confidence = self.predict_sign(features)
+                    
+                    # Apply smoothing
+                    prediction, confidence = self.smooth_prediction(prediction, confidence)
+                    
+                    self.stats['predictions_made'] += 1
+                    self.current_prediction = prediction
+                    self.current_confidence = confidence
+                elif not self.is_paused:
+                    # Clear buffer when no hand detected (only if not paused)
+                    self.prediction_buffer.clear()
+                    self.current_prediction = None
+                    self.current_confidence = 0.0
+                
+                # Calculate FPS
+                fps = self.calculate_fps()
+                
+                # Draw info on frame
+                self.draw_info(frame, self.current_prediction, self.current_confidence, fps)
+                
+                # Display frame
+                cv2.imshow('Tamil Sign Language Recognition', frame)
+                
+                # Handle keyboard input
+                key = cv2.waitKey(1) & 0xFF
+                
+                if key == ord('q'):
+                    print("\nQuitting...")
+                    break
+                elif key == ord(' '):  # SPACE key
+                    self.is_paused = not self.is_paused
+                    if self.is_paused:
+                        print("\n⏸ PAUSED - Prediction frozen")
+                    else:
+                        print("\n▶ RESUMED - Live prediction")
+                elif key == 13:  # ENTER key
+                    if self.current_prediction:
+                        self.captured_prediction = self.current_prediction
+                        self.captured_confidence = self.current_confidence
+                        self.capture_time = time.time()
+                        print(f"\n📸 CAPTURED: {self.captured_prediction} (Confidence: {self.captured_confidence:.2%})")
+                elif key == ord('s') and self.current_prediction:
+                    if output_dir:
+                        self.save_frame(frame, self.current_prediction, output_dir)
+                elif key == ord('r'):
+                    print("\nResetting statistics...")
+                    self.stats = {
+                        'total_frames': 0,
+                        'hands_detected': 0,
+                        'predictions_made': 0
+                    }
+                    self.is_paused = False
+                    self.captured_prediction = None   self.save_frame(frame, self.current_prediction, output_dir)
+                elif key == ord('r'):
+                    print("\nResetting statistics...")
+                    self.stats = {
+                        'total_frames': 0,
+                        'hands_detected': 0,
+                        'predictions_made': 0
+                    }
+                    
+        except KeyboardInterrupt:
+            print("\nInterrupted by user")
+        
+        finally:
+            # Cleanup
+            self.cleanup()
+            self.print_statistics()
+    
+    def cleanup(self):
+        """Release resources."""
+        print("\nCleaning up resources...")
+        
+        if self.cap:
+            self.cap.release()
+        
+        if self.hands:
+            self.hands.close()
+        
+        cv2.destroyAllWindows()
+        
+        print("✓ Cleanup complete")
+    
+    def print_statistics(self):
+        """Print session statistics."""
+        print("\n" + "=" * 70)
+        print("SESSION STATISTICS")
+        print("=" * 70)
+        print(f"\nTotal Frames Processed: {self.stats['total_frames']}")
+        print(f"Hands Detected: {self.stats['hands_detected']}")
+        print(f"Predictions Made: {self.stats['predictions_made']}")
+        
+        if self.stats['total_frames'] > 0:
+            detection_rate = (self.stats['hands_detected'] / self.stats['total_frames']) * 100
+            print(f"Hand Detection Rate: {detection_rate:.2f}%")
+        
+        print("\n" + "=" * 70)
+
+
+def load_and_predict_image(model_path: str, image_path: str) -> Tuple[str, float]:
+    """
+    Predict Tamil sign from a single image file.
+    
+    Args:
+        model_path: Path to trained model pickle
+        image_path: Path to image file
+    
+    Returns:
+        Tuple of (predicted_character, confidence)
+    """
+    # Load model
+    with open(model_path, 'rb') as f:
+        model_data = pickle.load(f)
+    
+    model = model_data['model']
+    scaler = model_data['scaler']
+    label_mapping = model_data['label_mapping']
+    
+    # Initialize MediaPipe
+    mp_hands = mp.solutions.hands
+    hands = mp_hands.Hands(
+        static_image_mode=True,
+        max_num_hands=1,
+        min_detection_confidence=0.5
+    )
+    
+    # Load image
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError(f"Failed to load image: {image_path}")
+    
+    # Convert to RGB
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    # Process with MediaPipe
+    results = hands.process(image_rgb)
+    
+    if not results.multi_hand_landmarks:
+        hands.close()
+        return None, 0.0
+    
+    # Extract features
+    features = []
+    for landmark in results.multi_hand_landmarks[0].landmark:
+        features.extend([landmark.x, landmark.y, landmark.z])
+    
+    features = np.array(features).reshape(1, -1)
+    
+    # Scale and predict
+    features_scaled = scaler.transform(features)
+    predicted_label = model.predict(features_scaled)[0]
+    predicted_proba = model.predict_proba(features_scaled)[0]
+    confidence = np.max(predicted_proba)
+    
+    predicted_char = label_mapping.get(predicted_label, "Unknown")
+    
+    hands.close()
+    
+    return predicted_char, confidence
